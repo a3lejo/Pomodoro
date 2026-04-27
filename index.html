@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pomodoro — Focus Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #faf7f2;
+      --bg-warm:      #f5efe4;
+      --surface:      #ffffff;
+      --surface-2:    #f0ebe0;
+      --border:       rgba(90, 70, 40, 0.10);
+      --border-md:    rgba(90, 70, 40, 0.18);
+      --text-primary: #2a2015;
+      --text-mid:     #7a6a50;
+      --text-muted:   #b0a090;
+      /* Terracota — modo enfoque */
+      --terra:        #c05c3a;
+      --terra-soft:   rgba(192, 92, 58, 0.10);
+      --terra-border: rgba(192, 92, 58, 0.30);
+      /* Sage — descanso corto */
+      --sage:         #5a8a6a;
+      --sage-soft:    rgba(90, 138, 106, 0.10);
+      --sage-border:  rgba(90, 138, 106, 0.30);
+      /* Lavanda — descanso largo */
+      --lav:          #7a6aaa;
+      --lav-soft:     rgba(122, 106, 170, 0.10);
+      --lav-border:   rgba(122, 106, 170, 0.30);
+      /* Acento activo (cambia por modo) */
+      --accent:       #c05c3a;
+      --accent-soft:  rgba(192, 92, 58, 0.10);
+      --accent-border:rgba(192, 92, 58, 0.30);
+      --font-display: 'Playfair Display', serif;
+      --font-sans:    'IBM Plex Sans', sans-serif;
+      --ring-size:    230px;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    header {
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: 22px;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .logo em { color: var(--accent); font-style: normal; }
+
+    .session-badge {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      transition: all 0.3s;
+    }
+
+    /* ── Mode tabs ──────────────────────────────── */
+    .mode-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 3rem;
+    }
+
+    .tab-btn {
+      background: var(--surface);
+      border: 1px solid var(--border-md);
+      border-radius: 20px;
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      padding: 7px 18px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .tab-btn:hover:not(.active) {
+      color: var(--text-mid);
+      border-color: var(--border-md);
+      background: var(--bg-warm);
+    }
+
+    /* ── Timer ring ─────────────────────────────── */
+    .timer-wrap {
+      position: relative;
+      width: var(--ring-size);
+      height: var(--ring-size);
+      margin-bottom: 2.5rem;
+    }
+
+    /* Fondo circular cálido detrás del anillo */
+    .timer-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 18px;
+      border-radius: 50%;
+      background: var(--bg-warm);
+    }
+
+    .ring-svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: var(--border-md);
+      stroke-width: 3;
+    }
+
+    .ring-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear, stroke 0.4s;
+    }
+
+    /* Puntos decorativos en el anillo */
+    .ring-dot {
+      fill: var(--accent);
+      transition: fill 0.4s;
+    }
+
+    .timer-inner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      z-index: 1;
+    }
+
+    .timer-label {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .timer-display {
+      font-family: var(--font-display);
+      font-size: 56px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .timer-phase {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      text-transform: uppercase;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+
+    /* ── Controls ───────────────────────────────── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .btn-icon {
+      background: var(--surface);
+      border: 1px solid var(--border-md);
+      border-radius: 50%;
+      width: 42px; height: 42px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-mid);
+      font-size: 15px;
+      transition: all 0.15s;
+    }
+
+    .btn-icon:hover {
+      border-color: var(--text-mid);
+      color: var(--text-primary);
+      background: var(--bg-warm);
+    }
+
+    .btn-main {
+      background: var(--accent);
+      border: none;
+      border-radius: 50%;
+      width: 60px; height: 60px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 20px;
+      color: #fff;
+      transition: all 0.2s;
+    }
+
+    .btn-main:hover { filter: brightness(1.08); transform: scale(1.04); }
+    .btn-main:active { transform: scale(0.96); }
+
+    /* ── Settings strip ─────────────────────────── */
+    .settings-strip {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 3rem;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .setting-cell {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .setting-cell:hover { border-color: var(--border-md); }
+
+    .setting-label {
+      font-size: 10px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .setting-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .setting-btn {
+      background: var(--bg-warm);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-mid);
+      font-size: 15px;
+      line-height: 1;
+      transition: all 0.15s;
+      font-family: var(--font-sans);
+    }
+
+    .setting-btn:hover { color: var(--text-primary); border-color: var(--border-md); background: var(--surface-2); }
+
+    .setting-val {
+      font-size: 16px;
+      font-weight: 500;
+      min-width: 26px;
+      text-align: center;
+      color: var(--text-primary);
+      font-family: var(--font-display);
+    }
+
+    /* ── Stats grid ─────────────────────────────── */
+    .stats-section {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .stats-header {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-cell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      line-height: 1.1;
+      color: var(--text-primary);
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Session log ────────────────────────────── */
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .log-list::-webkit-scrollbar { width: 3px; }
+    .log-list::-webkit-scrollbar-track { background: transparent; }
+    .log-list::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+
+    .log-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .log-left { display: flex; align-items: center; gap: 10px; }
+
+    .log-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .log-dot.focus  { background: var(--terra); }
+    .log-dot.break  { background: var(--sage); }
+    .log-dot.lbreak { background: var(--lav); }
+
+    .log-type { color: var(--text-mid); }
+    .log-time { color: var(--text-muted); font-size: 12px; }
+    .log-dur  { color: var(--text-muted); font-size: 12px; }
+
+    .log-empty {
+      background: var(--surface);
+      border: 1px dashed var(--border-md);
+      border-radius: 8px;
+      padding: 28px 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-style: italic;
+      font-family: var(--font-display);
+    }
+
+    /* ── Toast ──────────────────────────────────── */
+    .notif {
+      position: fixed;
+      bottom: 2rem; left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: var(--text-primary);
+      border-radius: 20px;
+      padding: 10px 22px;
+      font-size: 13px;
+      color: var(--bg);
+      letter-spacing: 0.02em;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .notif.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Responsive ─────────────────────────────── */
+    @media (max-width: 480px) {
+      :root { --ring-size: 190px; }
+      .timer-display { font-size: 46px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .settings-strip { flex-wrap: wrap; }
+      .setting-cell { min-width: calc(50% - 4px); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Header -->
+  <header>
+    <span class="logo">focus<span>.</span></span>
+    <div class="header-right">
+      <span class="session-badge" id="session-badge">sesión 1</span>
+    </div>
+  </header>
+
+  <!-- Mode tabs -->
+  <div class="mode-tabs">
+    <button class="tab-btn active" data-mode="focus">enfoque</button>
+    <button class="tab-btn" data-mode="short">descanso corto</button>
+    <button class="tab-btn" data-mode="long">descanso largo</button>
+  </div>
+
+  <!-- Ring timer -->
+  <div class="timer-wrap">
+    <svg class="ring-svg" viewBox="0 0 220 220">
+      <circle class="ring-track" cx="110" cy="110" r="104" />
+      <circle class="ring-progress" id="ring" cx="110" cy="110" r="104"
+        stroke-dasharray="653.45"
+        stroke-dashoffset="0" />
+    </svg>
+    <div class="timer-inner">
+      <span class="timer-label" id="timer-label">enfoque</span>
+      <span class="timer-display" id="timer-display">25:00</span>
+      <span class="timer-phase" id="timer-phase">listo</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn-icon" id="btn-prev" title="Anterior">&#8592;</button>
+    <button class="btn-main" id="btn-play" title="Iniciar">&#9654;</button>
+    <button class="btn-icon" id="btn-reset" title="Reiniciar">&#8635;</button>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings-strip">
+    <div class="setting-cell">
+      <span class="setting-label">Enfoque</span>
+      <div class="setting-control">
+        <button class="setting-btn" data-setting="focus" data-dir="-1">−</button>
+        <span class="setting-val" id="val-focus">25</span>
+        <button class="setting-btn" data-setting="focus" data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="setting-cell">
+      <span class="setting-label">Descanso corto</span>
+      <div class="setting-control">
+        <button class="setting-btn" data-setting="short" data-dir="-1">−</button>
+        <span class="setting-val" id="val-short">5</span>
+        <button class="setting-btn" data-setting="short" data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="setting-cell">
+      <span class="setting-label">Descanso largo</span>
+      <div class="setting-control">
+        <button class="setting-btn" data-setting="long" data-dir="-1">−</button>
+        <span class="setting-val" id="val-long">15</span>
+        <button class="setting-btn" data-setting="long" data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="setting-cell">
+      <span class="setting-label">Sesiones</span>
+      <div class="setting-control">
+        <button class="setting-btn" data-setting="cycles" data-dir="-1">−</button>
+        <span class="setting-val" id="val-cycles">4</span>
+        <button class="setting-btn" data-setting="cycles" data-dir="1">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-section">
+    <p class="stats-header">estadísticas de hoy</p>
+    <div class="stats-grid">
+      <div class="stat-cell">
+        <span class="stat-label">Sesiones</span>
+        <span class="stat-value" id="stat-sessions">0</span>
+        <span class="stat-sub">completadas</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Tiempo enfocado</span>
+        <span class="stat-value" id="stat-time">0</span>
+        <span class="stat-sub">minutos</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Racha</span>
+        <span class="stat-value" id="stat-streak">0</span>
+        <span class="stat-sub">días seguidos</span>
+      </div>
+    </div>
+
+    <div class="log-list" id="log-list">
+      <div class="log-empty" id="log-empty">— sin sesiones aún —</div>
+    </div>
+  </div>
+
+  <!-- Notification toast -->
+  <div class="notif" id="notif"></div>
+
+  <script>
+    // ── State ──────────────────────────────────────────
+    const CIRCUMFERENCE = 2 * Math.PI * 104; // 653.45
+
+    const settings = {
+      focus:  parseInt(localStorage.getItem('s_focus'))  || 25,
+      short:  parseInt(localStorage.getItem('s_short'))  || 5,
+      long:   parseInt(localStorage.getItem('s_long'))   || 15,
+      cycles: parseInt(localStorage.getItem('s_cycles')) || 4,
+    };
+
+    const stats = {
+      sessions: parseInt(localStorage.getItem('stat_sessions')) || 0,
+      minutes:  parseInt(localStorage.getItem('stat_minutes'))  || 0,
+      streak:   parseInt(localStorage.getItem('stat_streak'))   || 0,
+      lastDate: localStorage.getItem('stat_lastDate') || '',
+    };
+
+    let logs     = JSON.parse(localStorage.getItem('logs') || '[]');
+    let mode     = 'focus';   // focus | short | long
+    let cycleNum = 1;
+    let totalSeconds = settings.focus * 60;
+    let remaining    = totalSeconds;
+    let running      = false;
+    let interval     = null;
+
+    // ── DOM refs ───────────────────────────────────────
+    const display     = document.getElementById('timer-display');
+    const phase       = document.getElementById('timer-phase');
+    const label       = document.getElementById('timer-label');
+    const ring        = document.getElementById('ring');
+    const btnPlay     = document.getElementById('btn-play');
+    const btnReset    = document.getElementById('btn-reset');
+    const btnPrev     = document.getElementById('btn-prev');
+    const sessionBadge= document.getElementById('session-badge');
+    const notifEl     = document.getElementById('notif');
+    const logList     = document.getElementById('log-list');
+    const logEmpty    = document.getElementById('log-empty');
+
+    // ── Helpers ────────────────────────────────────────
+    function fmt(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    }
+
+    function setRing(ratio) {
+      ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - ratio);
+    }
+
+    function setRingColor(m) {
+      const colors = { focus: '#378ADD', short: '#3a9e72', long: '#c98a2a' };
+      ring.style.stroke = colors[m];
+    }
+
+    function updateDisplay() {
+      display.textContent = fmt(remaining);
+      setRing(remaining / totalSeconds);
+    }
+
+    function saveSettings() {
+      Object.entries(settings).forEach(([k,v]) => localStorage.setItem('s_'+k, v));
+    }
+
+    function saveStats() {
+      localStorage.setItem('stat_sessions', stats.sessions);
+      localStorage.setItem('stat_minutes',  stats.minutes);
+      localStorage.setItem('stat_streak',   stats.streak);
+      localStorage.setItem('stat_lastDate', stats.lastDate);
+    }
+
+    function renderStats() {
+      document.getElementById('stat-sessions').textContent = stats.sessions;
+      document.getElementById('stat-time').textContent     = stats.minutes;
+      document.getElementById('stat-streak').textContent   = stats.streak;
+    }
+
+    function toast(msg) {
+      notifEl.textContent = msg;
+      notifEl.classList.add('show');
+      setTimeout(() => notifEl.classList.remove('show'), 2800);
+    }
+
+    function renderLogs() {
+      if (logs.length === 0) {
+        logList.innerHTML = '<div class="log-empty" id="log-empty">— sin sesiones aún —</div>';
+        return;
+      }
+      logList.innerHTML = [...logs].reverse().map(l => {
+        const dotClass = l.type === 'focus' ? 'focus' : l.type === 'short' ? 'break' : 'lbreak';
+        const typeLabel = l.type === 'focus' ? 'enfoque' : l.type === 'short' ? 'descanso corto' : 'descanso largo';
+        return `<div class="log-item">
+          <div class="log-left">
+            <span class="log-dot ${dotClass}"></span>
+            <span class="log-type">${typeLabel}</span>
+          </div>
+          <span class="log-time">${l.time}</span>
+          <span class="log-dur">${l.dur} min</span>
+        </div>`;
+      }).join('');
+    }
+
+    function addLog(type, dur) {
+      const now = new Date();
+      const time = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      logs.push({ type, dur, time });
+      if (logs.length > 30) logs = logs.slice(-30);
+      localStorage.setItem('logs', JSON.stringify(logs));
+      renderLogs();
+    }
+
+    // ── Mode switch ────────────────────────────────────
+    function switchMode(m) {
+      clearInterval(interval);
+      running = false;
+      mode    = m;
+      const durations = { focus: settings.focus, short: settings.short, long: settings.long };
+      const labels    = { focus: 'enfoque', short: 'descanso corto', long: 'descanso largo' };
+      totalSeconds    = durations[m] * 60;
+      remaining       = totalSeconds;
+      label.textContent = labels[m];
+      phase.textContent = 'listo';
+      btnPlay.innerHTML = '&#9654;';
+      setRingColor(m);
+      updateDisplay();
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === m);
+      });
+    }
+
+    // ── Timer logic ────────────────────────────────────
+    function tick() {
+      if (remaining <= 0) {
+        clearInterval(interval);
+        running = false;
+        btnPlay.innerHTML = '&#9654;';
+        phase.textContent = '¡listo!';
+        onComplete();
+        return;
+      }
+      remaining--;
+      updateDisplay();
+      phase.textContent = 'corriendo';
+    }
+
+    function onComplete() {
+      const dur = mode === 'focus' ? settings.focus : mode === 'short' ? settings.short : settings.long;
+      addLog(mode, dur);
+
+      if (mode === 'focus') {
+        stats.sessions++;
+        stats.minutes += settings.focus;
+        const today = new Date().toDateString();
+        if (stats.lastDate !== today) {
+          const yesterday = new Date(Date.now() - 86400000).toDateString();
+          stats.streak = stats.lastDate === yesterday ? stats.streak + 1 : 1;
+          stats.lastDate = today;
+        }
+        saveStats();
+        renderStats();
+
+        if (cycleNum >= settings.cycles) {
+          cycleNum = 1;
+          toast('¡Ciclo completo! Tiempo de descanso largo 🎉');
+          setTimeout(() => switchMode('long'), 800);
+        } else {
+          cycleNum++;
+          sessionBadge.textContent = `sesión ${cycleNum}`;
+          toast('¡Sesión completada! Tómate un descanso ✓');
+          setTimeout(() => switchMode('short'), 800);
+        }
+      } else {
+        toast('¡Descanso terminado! A enfocarse 🎯');
+        setTimeout(() => switchMode('focus'), 800);
+      }
+    }
+
+    function togglePlay() {
+      if (running) {
+        clearInterval(interval);
+        running = false;
+        btnPlay.innerHTML = '&#9654;';
+        phase.textContent = 'pausado';
+      } else {
+        running = true;
+        btnPlay.innerHTML = '&#9646;&#9646;';
+        phase.textContent = 'corriendo';
+        interval = setInterval(tick, 1000);
+      }
+    }
+
+    // ── Event listeners ────────────────────────────────
+    btnPlay.addEventListener('click', togglePlay);
+
+    btnReset.addEventListener('click', () => {
+      clearInterval(interval);
+      running = false;
+      btnPlay.innerHTML = '&#9654;';
+      remaining = totalSeconds;
+      phase.textContent = 'listo';
+      updateDisplay();
+    });
+
+    btnPrev.addEventListener('click', () => {
+      clearInterval(interval);
+      running = false;
+      cycleNum = Math.max(1, cycleNum - 1);
+      sessionBadge.textContent = `sesión ${cycleNum}`;
+      switchMode('focus');
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+    });
+
+    document.querySelectorAll('.setting-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.setting;
+        const dir = parseInt(btn.dataset.dir);
+        const min = key === 'cycles' ? 1 : 1;
+        const max = key === 'cycles' ? 10 : key === 'focus' ? 90 : 30;
+        settings[key] = Math.min(max, Math.max(min, settings[key] + dir));
+        document.getElementById('val-' + key).textContent = settings[key];
+        saveSettings();
+        if (key === mode || (key === 'focus' && mode === 'focus') ||
+            (key === 'short' && mode === 'short') || (key === 'long' && mode === 'long')) {
+          if (!running) switchMode(mode);
+        }
+      });
+    });
+
+    // ── Init ───────────────────────────────────────────
+    document.getElementById('val-focus').textContent  = settings.focus;
+    document.getElementById('val-short').textContent  = settings.short;
+    document.getElementById('val-long').textContent   = settings.long;
+    document.getElementById('val-cycles').textContent = settings.cycles;
+
+    setRingColor(mode);
+    updateDisplay();
+    renderStats();
+    renderLogs();
+
+    // Streak check on load
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    if (stats.lastDate && stats.lastDate !== today && stats.lastDate !== yesterday) {
+      stats.streak = 0;
+      saveStats();
+      renderStats();
+    }
+  </script>
+</body>
+</html>
